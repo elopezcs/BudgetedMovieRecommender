@@ -1,0 +1,33 @@
+{
+  "epsilon": 0.05,
+  "bins": {
+    "uncertainty": 5,
+    "engagement": 5,
+    "budget": 4,
+    "step": 6,
+    "asked": 4,
+    "recommended": 4
+  },
+  "algorithm": "q_learning",
+  "seed": 42,
+  "action_size": 11,
+  "action_map": {
+    "0": "q_familiar",
+    "1": "q_exploratory",
+    "2": "q_serious",
+    "3": "q_light",
+    "4": "q_fast_paced",
+    "5": "q_calm",
+    "6": "rec_action",
+    "7": "rec_comedy",
+    "8": "rec_drama",
+    "9": "rec_scifi",
+    "10": "rec_documentary"
+  },
+  "episodes": 700,
+  "learning_rate": 0.2,
+  "discount_factor": 0.95,
+  "epsilon_min": 0.05,
+  "epsilon_decay": 0.995,
+  "config_path": "configs\\default.yaml"
+}

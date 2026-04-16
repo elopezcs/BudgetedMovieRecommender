@@ -1,0 +1,8 @@
+{
+  "algorithm": "dqn",
+  "average_cumulative_reward": -3.3947833333333337,
+  "acceptance_rate": 0.3991228070175439,
+  "abandonment_rate": 0.9666666666666667,
+  "average_questions_asked": 2.4583333333333335,
+  "average_session_length": 4.358333333333333
+}

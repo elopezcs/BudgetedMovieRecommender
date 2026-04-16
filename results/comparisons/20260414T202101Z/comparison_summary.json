@@ -1,0 +1,58 @@
+[
+  {
+    "algorithm": "always_recommend",
+    "average_cumulative_reward": 1.635893333333334,
+    "acceptance_rate": 0.38362760834670945,
+    "abandonment_rate": 0.9733333333333334,
+    "average_questions_asked": 0.0,
+    "average_session_length": 4.153333333333333
+  },
+  {
+    "algorithm": "ppo",
+    "average_cumulative_reward": 1.4046333333333336,
+    "acceptance_rate": 0.38445807770961143,
+    "abandonment_rate": 0.9833333333333333,
+    "average_questions_asked": 0.0,
+    "average_session_length": 4.075
+  },
+  {
+    "algorithm": "ask_once_then_recommend",
+    "average_cumulative_reward": -0.6748533333333336,
+    "acceptance_rate": 0.37995824634655534,
+    "abandonment_rate": 0.9666666666666667,
+    "average_questions_asked": 1.0,
+    "average_session_length": 4.193333333333333
+  },
+  {
+    "algorithm": "q_learning",
+    "average_cumulative_reward": -2.5990333333333333,
+    "acceptance_rate": 0.346875,
+    "abandonment_rate": 0.9583333333333334,
+    "average_questions_asked": 1.8666666666666667,
+    "average_session_length": 4.533333333333333
+  },
+  {
+    "algorithm": "dqn",
+    "average_cumulative_reward": -3.3947833333333337,
+    "acceptance_rate": 0.3991228070175439,
+    "abandonment_rate": 0.9666666666666667,
+    "average_questions_asked": 2.4583333333333335,
+    "average_session_length": 4.358333333333333
+  },
+  {
+    "algorithm": "random_policy",
+    "average_cumulative_reward": -3.6801866666666685,
+    "acceptance_rate": 0.34935897435897434,
+    "abandonment_rate": 0.9533333333333334,
+    "average_questions_asked": 2.54,
+    "average_session_length": 4.62
+  },
+  {
+    "algorithm": "always_ask",
+    "average_cumulative_reward": -9.462413333333325,
+    "acceptance_rate": 0.0,
+    "abandonment_rate": 0.96,
+    "average_questions_asked": 4.14,
+    "average_session_length": 4.14
+  }
+]
