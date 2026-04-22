@@ -29,13 +29,30 @@ export function SessionTimeline({ timeline }: SessionTimelineProps) {
             </p>
             <p>
               User Response:{' '}
-              <span className="text-white">
-                {step.accepted ? 'Accepted' : step.abandoned ? 'Abandoned' : 'Continued'}
-              </span>
+              <span className="text-white">{step.user_response_label}</span>
             </p>
             <p>
               Engagement: <span className="text-white">{toFixed(step.engagement, 2)}</span>
             </p>
+            <p>
+              Question Budget: <span className="text-white">{step.questions_used} / {step.question_budget}</span>
+            </p>
+            <p>
+              Budget Remaining: <span className="text-white">{step.question_budget_remaining}</span>
+            </p>
+            {step.fallback_applied ? (
+              <p className="md:col-span-2 text-amber-300">
+                {step.fallback_reason}
+                {/* step.original_attempted_action_name ? (
+                  <span className="text-slate-300"> Original policy choice: {titleCase(step.original_attempted_action_name)}.</span>
+                ) : null */}
+              </p>
+            ) : null}
+            {step.manual_response ? (
+              <p className="md:col-span-2">
+                Manual Response: <span className="text-white">{step.manual_response}</span>
+              </p>
+            ) : null}
             {step.question_text ? (
               <p className="md:col-span-2">
                 Question Prompt: <span className="text-white">{step.question_text}</span>

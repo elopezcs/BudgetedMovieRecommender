@@ -1,0 +1,28 @@
+{
+  "algorithm": "ppo",
+  "seed": 123,
+  "timesteps": 30000,
+  "action_map": {
+    "0": "q_familiar",
+    "1": "q_exploratory",
+    "2": "q_serious",
+    "3": "q_light",
+    "4": "q_fast_paced",
+    "5": "q_calm",
+    "6": "rec_action",
+    "7": "rec_comedy",
+    "8": "rec_drama",
+    "9": "rec_scifi",
+    "10": "rec_documentary"
+  },
+  "hyperparameters": {
+    "total_timesteps": 30000,
+    "learning_rate": 0.0003,
+    "n_steps": 128,
+    "batch_size": 64,
+    "gamma": 0.97,
+    "gae_lambda": 0.95,
+    "ent_coef": 0.01,
+    "eval_episodes": 120
+  }
+}

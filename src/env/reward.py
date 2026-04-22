@@ -11,6 +11,7 @@ def compute_step_reward(
     skipped: bool,
     abandoned: bool,
     engagement: float,
+    uncertainty_delta: float,
     over_budget: bool,
     repeated_action: bool,
 ) -> float:
@@ -21,6 +22,8 @@ def compute_step_reward(
         reward += reward_cfg["skip_penalty"]
     if is_question:
         reward += reward_cfg["question_cost"]
+        if uncertainty_delta < 0.0:
+            reward += reward_cfg["question_information_gain_scale"] * float(-uncertainty_delta)
     if over_budget:
         reward += reward_cfg["over_budget_penalty"]
     if abandoned:

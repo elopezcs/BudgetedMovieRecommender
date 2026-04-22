@@ -1,0 +1,8 @@
+{
+  "algorithm": "ppo",
+  "average_cumulative_reward": 0.5243666666666665,
+  "acceptance_rate": 0.390715667311412,
+  "abandonment_rate": 0.95,
+  "average_questions_asked": 0.0,
+  "average_session_length": 4.308333333333334
+}

@@ -25,7 +25,7 @@ export function ScenarioControls({
   hasSession,
 }: ScenarioControlsProps) {
   return (
-    <div className="grid gap-4 lg:grid-cols-5">
+    <div className="grid gap-4 lg:grid-cols-6">
       <label className="flex flex-col gap-2 text-sm text-slate-300">
         User Profile
         <select
@@ -50,6 +50,20 @@ export function ScenarioControls({
           {(options?.policies ?? []).map((policy) => (
             <option key={policy} value={policy}>
               {titleCase(policy)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-2 text-sm text-slate-300">
+        Mode
+        <select
+          className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2"
+          value={value.mode}
+          onChange={(event) => onChange({ ...value, mode: event.target.value as DemoStartRequest['mode'] })}
+        >
+          {(options?.session_modes ?? []).map((mode) => (
+            <option key={mode} value={mode}>
+              {titleCase(mode)}
             </option>
           ))}
         </select>

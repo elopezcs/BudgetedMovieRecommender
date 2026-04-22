@@ -5,7 +5,8 @@
   "seed": 42,
   "environment": {
     "max_steps": 12,
-    "question_budget": 4,
+    "question_budget": 3,
+    "question_budget_mode": "hard",
     "initial_uncertainty": 0.7,
     "initial_engagement": 0.8
   },

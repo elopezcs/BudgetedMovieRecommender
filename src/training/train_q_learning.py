@@ -58,6 +58,8 @@ def train_q_learning(config_path: str, seed: int | None = None) -> str:
         "discount_factor": qcfg["discount_factor"],
         "epsilon_min": qcfg["epsilon_min"],
         "epsilon_decay": qcfg["epsilon_decay"],
+        "state_features_version": 2,
+        "greedy_tie_break": "deterministic_state_hash",
         "config_path": str(Path(config_path)),
     }
     agent.save(model_dir, metadata)

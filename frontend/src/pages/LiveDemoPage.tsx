@@ -5,10 +5,11 @@ import { PageTitle } from '../components/PageTitle'
 import { BeliefChart } from '../features/demo/BeliefChart'
 import { BudgetBar } from '../features/demo/BudgetBar'
 import { FinalSummaryCard } from '../features/demo/FinalSummaryCard'
+import { ManualResponsePanel } from '../features/demo/ManualResponsePanel'
 import { ScenarioControls } from '../features/demo/ScenarioControls'
 import { SessionTimeline } from '../features/demo/SessionTimeline'
-import { fetchDemoOptions, nextStep, resetSession, startSession } from '../services/demoService'
-import type { DemoOptionsResponse, DemoSessionResponse, DemoStartRequest } from '../types/demo'
+import { fetchDemoOptions, nextStep, resetSession, startSession, submitManualResponse } from '../services/demoService'
+import type { DemoOptionsResponse, DemoSessionResponse, DemoStartRequest, ManualResponseRequest } from '../types/demo'
 import { toFixed, toPercent } from '../utils/format'
 
 const defaultRequest: DemoStartRequest = {
@@ -16,6 +17,7 @@ const defaultRequest: DemoStartRequest = {
   user_profile: 'balanced_viewer',
   question_budget: 4,
   seed: null,
+  mode: 'auto',
 }
 
 export function LiveDemoPage() {
@@ -35,6 +37,7 @@ export function LiveDemoPage() {
           ...prev,
           policy: payload.policies[0] ?? prev.policy,
           user_profile: payload.user_profiles[0] ?? prev.user_profile,
+          mode: payload.session_modes[0] ?? prev.mode,
           question_budget: payload.budget_range.default,
         }))
       })
@@ -42,7 +45,7 @@ export function LiveDemoPage() {
   }, [])
 
   useEffect(() => {
-    if (!autoplay || !session || session.done) {
+    if (!autoplay || !session || session.done || session.mode !== 'auto' || session.awaiting_manual_response) {
       return
     }
 
@@ -80,7 +83,7 @@ export function LiveDemoPage() {
   }
 
   async function handleNextStep() {
-    if (!session || session.done) {
+    if (!session || session.done || session.awaiting_manual_response) {
       return
     }
     setLoading(true)
@@ -114,6 +117,24 @@ export function LiveDemoPage() {
     }
   }
 
+  async function handleManualResponse(payload: Omit<ManualResponseRequest, 'session_id'>) {
+    if (!session) {
+      return
+    }
+    setLoading(true)
+    setError(null)
+    try {
+      const nextSession = await submitManualResponse({ session_id: session.session_id, ...payload })
+      setSession(nextSession)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const canAutoplay = Boolean(session) && !session?.done && session.mode === 'auto' && !session.awaiting_manual_response
+
   return (
     <div className="space-y-6">
       <PageTitle
@@ -131,14 +152,14 @@ export function LiveDemoPage() {
           onStart={handleStart}
           onNext={() => void handleNextStep()}
           onReset={() => void handleReset()}
-          canStep={!session?.done}
+          canStep={!session?.done && !session?.awaiting_manual_response}
           hasSession={Boolean(session)}
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 disabled:opacity-50"
-            disabled={!session || session.done}
+            disabled={!canAutoplay}
             onClick={() => setAutoplay((prev) => !prev)}
           >
             {autoplay ? 'Pause Playback' : 'Play Session'}
@@ -152,6 +173,17 @@ export function LiveDemoPage() {
           </button>
         </div>
       </Card>
+
+      {session?.mode === 'interactive' && session.pending_action ? (
+        <Card>
+          <ManualResponsePanel
+            key={`${session.pending_action.step_index}-${session.pending_action.action_id}`}
+            pendingAction={session.pending_action}
+            loading={loading}
+            onSubmit={(payload) => void handleManualResponse(payload)}
+          />
+        </Card>
+      ) : null}
 
       {error ? <FeedbackState title="Demo service error" message={error} /> : null}
 

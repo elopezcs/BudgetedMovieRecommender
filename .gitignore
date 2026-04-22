@@ -3,3 +3,8 @@
 /.venv
 /debug-0831b1.log
 /debug-5bb150.log
+/_
+
+__pytest__/
+
+

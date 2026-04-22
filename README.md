@@ -54,6 +54,9 @@ tests/
     - action, comedy, drama, sci-fi, documentary
 - **Termination**
   - abandonment or max-step truncation
+- **Question Budget Modes**
+  - `soft`: questions beyond the budget are still allowed but incur `over_budget_penalty`
+  - `hard`: once the budget is exhausted, extra question actions are blocked and treated as over-budget attempts
 - **Reward**
   - positive: recommendation acceptance, engagement continuation
   - negative: skipping, abandonment, question friction, over-budget questioning, repetition
@@ -80,6 +83,19 @@ py -3.11 -m venv .venv
 python -m pip install --upgrade pip setuptools wheel
 python -m pip install --no-cache-dir -r requirements.txt
 ```
+
+The default environment config in `configs/default.yaml` includes a question-budget enforcement mode:
+
+```yaml
+environment:
+  question_budget: 4
+  question_budget_mode: soft
+```
+
+- `soft` preserves the current behavior: policies may ask beyond the budget, but those steps receive `over_budget_penalty`
+- `hard` turns the budget into a true cap: once the allowed questions are used, additional question actions do not execute a real user-question transition
+
+When comparing `soft` and `hard` settings, retrain and re-evaluate models under each mode instead of reusing artifacts trained under a different environment dynamic.
 
 Start backend API:
 
@@ -120,6 +136,8 @@ python -m src.training.train_ppo --config configs/default.yaml
 python -m src.training.train_all --config configs/default.yaml
 ```
 
+Changing `environment.question_budget_mode` changes the environment dynamics seen during training. If you switch between `soft` and `hard`, treat those as separate experiments and retrain the policies.
+
 Optional reproducibility override:
 
 ```bash
@@ -135,6 +153,8 @@ python -m src.evaluation.evaluate_q_learning --config configs/default.yaml
 python -m src.evaluation.evaluate_dqn --config configs/default.yaml
 python -m src.evaluation.evaluate_ppo --config configs/default.yaml
 ```
+
+Evaluation and the Live Demo backend both read the same config-driven environment behavior, so keep the config aligned with the experiment you want to demonstrate.
 
 Evaluate a specific model directory:
 

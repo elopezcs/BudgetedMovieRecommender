@@ -34,8 +34,34 @@ class QLearningAgent:
         self.epsilon = epsilon_start
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
-        self.bins = bins
+        self.bins = self._normalize_bins(dict(bins))
         self.q_table: Dict[Tuple[int, ...], np.ndarray] = {}
+
+    @staticmethod
+    def _normalize_bins(bins: Dict[str, int]) -> Dict[str, int]:
+        normalized = dict(bins)
+        normalized["repeats"] = int(normalized.get("repeats", normalized.get("recommended", 4)))
+        normalized["belief_margin"] = int(normalized.get("belief_margin", 1))
+        return normalized
+
+    @staticmethod
+    def _bin_value(value: float, n_bins: int) -> int:
+        return min(n_bins - 1, int(value * n_bins))
+
+    def _belief_signature(self, belief: np.ndarray) -> int:
+        ranked = np.argsort(-belief, kind="stable")
+        top_idx = int(ranked[0])
+        top_value = float(belief[top_idx])
+        second_value = float(belief[int(ranked[1])]) if belief.size > 1 else 0.0
+        margin_bucket = self._bin_value(top_value - second_value, self.bins["belief_margin"])
+        return top_idx * self.bins["belief_margin"] + margin_bucket
+
+    @staticmethod
+    def _deterministic_tie_break(state: Tuple[int, ...], best_actions: np.ndarray) -> int:
+        signature = 0
+        for idx, value in enumerate(state, start=1):
+            signature = (signature * 31 + idx * (value + 1)) % 2_147_483_647
+        return int(best_actions[signature % len(best_actions)])
 
     def discretize_state(self, obs: np.ndarray) -> Tuple[int, ...]:
         belief = obs[:5]
@@ -47,18 +73,15 @@ class QLearningAgent:
         engagement = obs[10]
         step_ratio = obs[11]
 
-        def b(value: float, n_bins: int) -> int:
-            return min(n_bins - 1, int(value * n_bins))
-
         state = (
-            int(np.argmax(belief)),
-            b(float(uncertainty), self.bins["uncertainty"]),
-            b(float(engagement), self.bins["engagement"]),
-            b(float(budget_ratio), self.bins["budget"]),
-            b(float(step_ratio), self.bins["step"]),
-            b(float(asked_ratio), self.bins["asked"]),
-            b(float(recommended_ratio), self.bins["recommended"]),
-            b(float(repeats_ratio), self.bins["recommended"]),
+            self._belief_signature(belief),
+            self._bin_value(float(uncertainty), self.bins["uncertainty"]),
+            self._bin_value(float(engagement), self.bins["engagement"]),
+            self._bin_value(float(budget_ratio), self.bins["budget"]),
+            self._bin_value(float(step_ratio), self.bins["step"]),
+            self._bin_value(float(asked_ratio), self.bins["asked"]),
+            self._bin_value(float(recommended_ratio), self.bins["recommended"]),
+            self._bin_value(float(repeats_ratio), self.bins["repeats"]),
         )
         return state
 
@@ -71,7 +94,12 @@ class QLearningAgent:
         q_values = self._ensure_state(state)
         if explore and np.random.random() < self.epsilon:
             return int(np.random.randint(0, self.action_size))
-        return int(np.argmax(q_values))
+        best_actions = np.flatnonzero(np.isclose(q_values, np.max(q_values)))
+        if len(best_actions) == 1:
+            return int(best_actions[0])
+        if explore:
+            return int(np.random.choice(best_actions))
+        return self._deterministic_tie_break(state, best_actions)
 
     def update(
         self,

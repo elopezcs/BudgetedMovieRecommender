@@ -25,8 +25,10 @@ from .schemas import (
     DemoOptionsResponse,
     DemoSessionResponse,
     DemoStartRequest,
+    ManualResponseRequest,
     OverviewKpisModel,
     OverviewResponse,
+    PendingActionModel,
     SessionIdRequest,
     SessionStepModel,
     SessionSummaryModel,
@@ -38,6 +40,7 @@ RESULTS_DIR = ROOT / "results"
 DEBUG_LOG_PATH = ROOT / "debug-5bb150.log"
 
 RL_POLICIES = {"q_learning", "dqn", "ppo"}
+SESSION_MODES = ["auto", "interactive"]
 ALL_POLICIES = [
     "always_recommend",
     "always_ask",
@@ -63,6 +66,7 @@ class SessionState:
     session_id: str
     policy: str
     user_profile: str
+    mode: str
     question_budget: int
     seed: int
     env: BudgetedMovieRecommenderEnv
@@ -75,6 +79,8 @@ class SessionState:
     skipped_recommendations: int = 0
     abandoned: bool = False
     done: bool = False
+    awaiting_manual_response: bool = False
+    pending_action: PendingActionModel | None = None
 
 
 app = FastAPI(title="Movie Recommender Demo API", version="1.0.0")
@@ -161,6 +167,76 @@ def _question_usage(observation: np.ndarray, budget: int) -> tuple[int, int]:
     return used, estimated_remaining
 
 
+def _pretty_label(value: str) -> str:
+    return value.replace("_", " ").title()
+
+
+def _action_details(action_id: int) -> dict[str, str | None]:
+    action_name = ACTIONS[action_id]
+    action_type = "ask" if action_id < len(QUESTION_ACTIONS) else "recommend"
+    question_text = None
+    recommendation_genre = None
+    if action_type == "ask":
+        question_type = QUESTION_TYPES[action_id]
+        question_text = QUESTION_LABELS.get(question_type, question_type)
+    else:
+        recommendation_genre = GENRES[action_id - len(QUESTION_ACTIONS)]
+    return {
+        "action_name": action_name,
+        "action_type": action_type,
+        "question_text": question_text,
+        "recommendation_genre": recommendation_genre,
+    }
+
+
+def _build_pending_action(
+    action_id: int,
+    step_index: int,
+    *,
+    fallback_applied: bool = False,
+    fallback_reason: str | None = None,
+    original_attempted_action_name: str | None = None,
+) -> PendingActionModel:
+    details = _action_details(action_id)
+    return PendingActionModel(
+        step_index=step_index,
+        action_id=action_id,
+        action_name=str(details["action_name"]),
+        action_type=str(details["action_type"]),  # type: ignore[arg-type]
+        question_text=details["question_text"],
+        recommendation_genre=details["recommendation_genre"],
+        fallback_applied=fallback_applied,
+        fallback_reason=fallback_reason,
+        original_attempted_action_name=original_attempted_action_name,
+    )
+
+
+def _user_response_label(*, accepted: bool, abandoned: bool) -> str:
+    if accepted:
+        return "Accepted"
+    if abandoned:
+        return "Abandoned"
+    return "Continued"
+
+
+def _manual_response_summary(
+    *,
+    action_type: str,
+    continuation: str,
+    question_feedback: str | None = None,
+    hinted_genre: str | None = None,
+    recommendation_feedback: str | None = None,
+) -> str:
+    if action_type == "ask":
+        summary = _pretty_label(question_feedback or "neutral")
+        if hinted_genre:
+            summary = f"{summary}; hinted {_pretty_label(hinted_genre)}"
+    else:
+        summary = _pretty_label(recommendation_feedback or "skipped")
+    end_state = "Abandoned session" if continuation == "abandon" else "Continued session"
+    return f"{summary}; {end_state}"
+
+
 def _build_response(session: SessionState) -> DemoSessionResponse:
     questions_used = session.timeline[-1].questions_used if session.timeline else 0
     summary = SessionSummaryModel(
@@ -175,12 +251,15 @@ def _build_response(session: SessionState) -> DemoSessionResponse:
         session_id=session.session_id,
         policy=session.policy,  # type: ignore[arg-type]
         user_profile=session.user_profile,
+        mode=session.mode,  # type: ignore[arg-type]
         question_budget=session.question_budget,
         done=session.done,
+        awaiting_manual_response=session.awaiting_manual_response,
         current_observation=[float(x) for x in session.current_observation.tolist()],
         latest_step=session.timeline[-1] if session.timeline else None,
         timeline=session.timeline,
         summary=summary,
+        pending_action=session.pending_action,
     )
 
 
@@ -194,6 +273,108 @@ def _policy_action(session: SessionState, step_index: int) -> int:
 
     assert session.policy_fn is not None
     return int(session.policy_fn(session.current_observation, step_index, {}))
+
+
+def _is_question_action(action_id: int) -> bool:
+    return action_id < len(QUESTION_ACTIONS)
+
+
+def _select_fallback_recommendation(session: SessionState) -> int:
+    belief_values = session.current_observation[: len(GENRES)]
+    top_genre_idx = int(np.argmax(belief_values))
+    return len(QUESTION_ACTIONS) + top_genre_idx
+
+
+def _resolve_action_for_demo(
+    session: SessionState, action_id: int
+) -> tuple[int, bool, str | None, str | None]:
+    if not _is_question_action(action_id):
+        return action_id, False, None, None
+
+    questions_used, _ = _question_usage(session.current_observation, session.question_budget)
+    if session.env.question_budget_mode != "hard" or questions_used < session.question_budget:
+        return action_id, False, None, None
+
+    original_details = _action_details(action_id)
+    fallback_action_id = _select_fallback_recommendation(session)
+    return (
+        fallback_action_id,
+        True,
+        "Question budget exhausted; replaced blocked ask with fallback recommendation.",
+        str(original_details["action_name"]),
+    )
+
+
+def _commit_step(
+    session: SessionState,
+    *,
+    action_id: int,
+    next_observation: np.ndarray,
+    reward: float,
+    terminated: bool,
+    truncated: bool,
+    info: Dict,
+    manual_response: str | None = None,
+    fallback_applied: bool = False,
+    fallback_reason: str | None = None,
+    original_attempted_action_name: str | None = None,
+) -> DemoSessionResponse:
+    details = _action_details(action_id)
+    action_type = str(details["action_type"])
+
+    session.current_observation = np.array(next_observation, dtype=np.float32)
+    session.cumulative_reward += float(reward)
+
+    if action_type == "recommend":
+        if info.get("accepted"):
+            session.accepted_recommendations += 1
+        else:
+            session.skipped_recommendations += 1
+
+    if info.get("abandoned"):
+        session.abandoned = True
+
+    questions_used, remaining = _question_usage(session.current_observation, session.question_budget)
+    belief_values = session.current_observation[: len(GENRES)]
+    belief = {genre: float(score) for genre, score in zip(GENRES, belief_values)}
+
+    step = SessionStepModel(
+        step_index=len(session.timeline),
+        action_id=action_id,
+        action_name=str(details["action_name"]),
+        action_type=action_type,  # type: ignore[arg-type]
+        question_text=details["question_text"],
+        recommendation_genre=details["recommendation_genre"],
+        accepted=bool(info.get("accepted")),
+        abandoned=bool(info.get("abandoned")),
+        reward=float(reward),
+        cumulative_reward=float(session.cumulative_reward),
+        engagement=float(session.current_observation[10]),
+        uncertainty=float(session.current_observation[5]),
+        questions_used=questions_used,
+        question_budget=session.question_budget,
+        question_budget_remaining=remaining,
+        question_asked=bool(info.get("question_asked")),
+        over_budget=bool(info.get("over_budget")),
+        belief=belief,
+        terminated=bool(terminated),
+        truncated=bool(truncated),
+        user_type=session.user_profile,
+        user_response_label=_user_response_label(
+            accepted=bool(info.get("accepted")),
+            abandoned=bool(info.get("abandoned")),
+        ),
+        manual_response=manual_response,
+        fallback_applied=fallback_applied,
+        fallback_reason=fallback_reason,
+        original_attempted_action_name=original_attempted_action_name,
+    )
+
+    session.timeline.append(step)
+    session.done = bool(terminated or truncated)
+    session.awaiting_manual_response = False
+    session.pending_action = None
+    return _build_response(session)
 
 
 @app.get("/api/health")
@@ -275,6 +456,7 @@ def demo_options() -> DemoOptionsResponse:
         response = DemoOptionsResponse(
             policies=ALL_POLICIES,
             user_profiles=sorted(list(PROFILE_LIBRARY.keys())),
+            session_modes=SESSION_MODES,  # type: ignore[arg-type]
             budget_range={"min": 1, "max": 10, "default": default_budget},
         )
         # region agent log
@@ -311,6 +493,7 @@ def start_session(payload: DemoStartRequest) -> DemoSessionResponse:
         session_id=session_id,
         policy=payload.policy,
         user_profile=payload.user_profile,
+        mode=payload.mode,
         question_budget=payload.question_budget,
         seed=seed,
         env=env,
@@ -333,59 +516,96 @@ def next_session_step(payload: SessionIdRequest) -> DemoSessionResponse:
         raise HTTPException(status_code=404, detail="Session not found.")
     if session.done:
         return _build_response(session)
+    if session.awaiting_manual_response:
+        raise HTTPException(status_code=409, detail="Session is waiting for a manual response.")
 
     step_index = len(session.timeline)
-    action_id = _policy_action(session, step_index)
-    action_name = ACTIONS[action_id]
+    attempted_action_id = _policy_action(session, step_index)
+    action_id, fallback_applied, fallback_reason, original_attempted_action_name = _resolve_action_for_demo(
+        session, attempted_action_id
+    )
+    if session.mode == "interactive":
+        session.pending_action = _build_pending_action(
+            action_id,
+            step_index,
+            fallback_applied=fallback_applied,
+            fallback_reason=fallback_reason,
+            original_attempted_action_name=original_attempted_action_name,
+        )
+        session.awaiting_manual_response = True
+        return _build_response(session)
+
     next_observation, reward, terminated, truncated, info = session.env.step(action_id)
-    session.current_observation = np.array(next_observation, dtype=np.float32)
-    session.cumulative_reward += float(reward)
-
-    action_type = "ask" if action_id < len(QUESTION_ACTIONS) else "recommend"
-    question_text = None
-    recommendation_genre = None
-    if action_type == "ask":
-        question_type = QUESTION_TYPES[action_id]
-        question_text = QUESTION_LABELS.get(question_type, question_type)
-    else:
-        recommendation_genre = GENRES[action_id - len(QUESTION_ACTIONS)]
-        if info.get("accepted"):
-            session.accepted_recommendations += 1
-        else:
-            session.skipped_recommendations += 1
-
-    if info.get("abandoned"):
-        session.abandoned = True
-
-    questions_used, remaining = _question_usage(session.current_observation, session.question_budget)
-    belief_values = session.current_observation[: len(GENRES)]
-    belief = {genre: float(score) for genre, score in zip(GENRES, belief_values)}
-
-    step = SessionStepModel(
-        step_index=step_index,
+    return _commit_step(
+        session,
         action_id=action_id,
-        action_name=action_name,
-        action_type=action_type,
-        question_text=question_text,
-        recommendation_genre=recommendation_genre,
-        accepted=bool(info.get("accepted")),
-        abandoned=bool(info.get("abandoned")),
+        next_observation=np.array(next_observation, dtype=np.float32),
         reward=float(reward),
-        cumulative_reward=float(session.cumulative_reward),
-        engagement=float(session.current_observation[10]),
-        uncertainty=float(session.current_observation[5]),
-        questions_used=questions_used,
-        question_budget=session.question_budget,
-        question_budget_remaining=remaining,
-        belief=belief,
         terminated=bool(terminated),
         truncated=bool(truncated),
-        user_type=session.user_profile,
+        info=info,
+        fallback_applied=fallback_applied,
+        fallback_reason=fallback_reason,
+        original_attempted_action_name=original_attempted_action_name,
     )
 
-    session.timeline.append(step)
-    session.done = bool(terminated or truncated)
-    return _build_response(session)
+
+@app.post("/api/demo/session/respond", response_model=DemoSessionResponse)
+def respond_to_interactive_step(payload: ManualResponseRequest) -> DemoSessionResponse:
+    session = SESSIONS.get(payload.session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    if session.mode != "interactive":
+        raise HTTPException(status_code=400, detail="Manual responses are only supported in interactive mode.")
+    if session.done:
+        return _build_response(session)
+    if not session.awaiting_manual_response or session.pending_action is None:
+        raise HTTPException(status_code=409, detail="No pending action is awaiting a manual response.")
+
+    pending = session.pending_action
+    if pending.action_type == "ask":
+        if payload.question_feedback is None or payload.hinted_genre is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Interactive question responses require question_feedback and hinted_genre.",
+            )
+    else:
+        if payload.recommendation_feedback is None:
+            raise HTTPException(
+                status_code=400,
+                detail="Interactive recommendation responses require recommendation_feedback.",
+            )
+
+    try:
+        next_observation, reward, terminated, truncated, info = session.env.apply_manual_response(
+            pending.action_id,
+            continuation=payload.continuation,
+            question_feedback=payload.question_feedback,
+            hinted_genre=payload.hinted_genre,
+            recommendation_feedback=payload.recommendation_feedback,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return _commit_step(
+        session,
+        action_id=pending.action_id,
+        next_observation=np.array(next_observation, dtype=np.float32),
+        reward=float(reward),
+        terminated=bool(terminated),
+        truncated=bool(truncated),
+        info=info,
+        manual_response=_manual_response_summary(
+            action_type=pending.action_type,
+            continuation=payload.continuation,
+            question_feedback=payload.question_feedback,
+            hinted_genre=payload.hinted_genre,
+            recommendation_feedback=payload.recommendation_feedback,
+        ),
+        fallback_applied=pending.fallback_applied,
+        fallback_reason=pending.fallback_reason,
+        original_attempted_action_name=pending.original_attempted_action_name,
+    )
 
 
 @app.post("/api/demo/session/reset", response_model=DemoSessionResponse)
@@ -402,4 +622,6 @@ def reset_session(payload: SessionIdRequest) -> DemoSessionResponse:
     session.skipped_recommendations = 0
     session.abandoned = False
     session.done = False
+    session.awaiting_manual_response = False
+    session.pending_action = None
     return _build_response(session)
