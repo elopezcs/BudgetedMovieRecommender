@@ -5,15 +5,7 @@ from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-PolicyName = Literal[
-    "always_recommend",
-    "always_ask",
-    "ask_once_then_recommend",
-    "random_policy",
-    "q_learning",
-    "dqn",
-    "ppo",
-]
+DemoPolicyName = Literal["q_learning", "dqn", "ppo"]
 
 SessionMode = Literal["auto", "interactive"]
 QuestionFeedback = Literal["helpful", "neutral", "annoying"]
@@ -27,7 +19,7 @@ ContinuationChoice = Literal["continue", "abandon"]
 
 
 class DemoStartRequest(BaseModel):
-    policy: PolicyName
+    policy: DemoPolicyName
     user_profile: str
     question_budget: int = Field(ge=1, le=12)
     seed: Optional[int] = None
@@ -98,7 +90,7 @@ class SessionSummaryModel(BaseModel):
 
 class DemoSessionResponse(BaseModel):
     session_id: str
-    policy: PolicyName
+    policy: DemoPolicyName
     user_profile: str
     mode: SessionMode
     question_budget: int
@@ -112,7 +104,7 @@ class DemoSessionResponse(BaseModel):
 
 
 class DemoOptionsResponse(BaseModel):
-    policies: List[PolicyName]
+    policies: List[DemoPolicyName]
     user_profiles: List[str]
     session_modes: List[SessionMode]
     budget_range: Dict[str, int]

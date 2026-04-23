@@ -33,7 +33,7 @@ PROFILE_LIBRARY: Dict[str, UserProfile] = {
         base_preferences=np.array([0.5, 0.15, 0.1, 0.2, 0.05], dtype=np.float32),
         question_tolerance=0.55,
         repetition_sensitivity=0.3,
-        abandonment_threshold=0.2,
+        abandonment_threshold=0.17,
         engagement_gain_on_good_question=0.08,
         engagement_loss_on_bad_question=0.08,
     ),
@@ -42,7 +42,7 @@ PROFILE_LIBRARY: Dict[str, UserProfile] = {
         base_preferences=np.array([0.2, 0.2, 0.2, 0.2, 0.2], dtype=np.float32),
         question_tolerance=0.8,
         repetition_sensitivity=0.2,
-        abandonment_threshold=0.14,
+        abandonment_threshold=0.11,
         engagement_gain_on_good_question=0.06,
         engagement_loss_on_bad_question=0.05,
     ),
@@ -51,7 +51,7 @@ PROFILE_LIBRARY: Dict[str, UserProfile] = {
         base_preferences=np.array([0.12, 0.15, 0.13, 0.33, 0.27], dtype=np.float32),
         question_tolerance=0.72,
         repetition_sensitivity=0.45,
-        abandonment_threshold=0.22,
+        abandonment_threshold=0.19,
         engagement_gain_on_good_question=0.09,
         engagement_loss_on_bad_question=0.09,
     ),
@@ -60,7 +60,7 @@ PROFILE_LIBRARY: Dict[str, UserProfile] = {
         base_preferences=np.array([0.22, 0.24, 0.24, 0.15, 0.15], dtype=np.float32),
         question_tolerance=0.35,
         repetition_sensitivity=0.5,
-        abandonment_threshold=0.26,
+        abandonment_threshold=0.23,
         engagement_gain_on_good_question=0.04,
         engagement_loss_on_bad_question=0.12,
     ),
@@ -120,9 +120,9 @@ class UserSimulator:
             uncertainty_delta = 0.05
 
         friction = max(0.0, 0.5 - quality)
-        abandon_prob = self.profile.abandonment_threshold + friction * 0.1
+        abandon_prob = self.profile.abandonment_threshold + friction * 0.06
         if repeated:
-            abandon_prob += 0.08 * self.profile.repetition_sensitivity
+            abandon_prob += 0.05 * self.profile.repetition_sensitivity
 
         hinted_genre = int(
             self.rng.choice(np.arange(len(GENRES)), p=affinity / affinity.sum())
@@ -147,10 +147,10 @@ class UserSimulator:
             engagement_delta = 0.08
             abandon_prob = max(0.0, self.profile.abandonment_threshold - 0.15)
         else:
-            engagement_delta = -0.12
-            abandon_prob = self.profile.abandonment_threshold + (0.15 * (1.0 - pref))
+            engagement_delta = -0.08
+            abandon_prob = self.profile.abandonment_threshold + (0.10 * (1.0 - pref))
             if repeated:
-                abandon_prob += 0.1
+                abandon_prob += 0.05
 
         return {
             "accepted": accepted,

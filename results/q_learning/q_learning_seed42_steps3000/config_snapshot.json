@@ -12,13 +12,13 @@
   },
   "reward": {
     "acceptance_reward": 6.0,
-    "engagement_bonus_scale": 0.8,
-    "skip_penalty": -1.5,
-    "question_cost": -0.15,
-    "question_information_gain_scale": 4.0,
-    "over_budget_penalty": -1.25,
-    "abandonment_penalty": -7.0,
-    "repetition_penalty": -0.4
+    "engagement_bonus_scale": 0.9,
+    "skip_penalty": -1.0,
+    "question_cost": -0.08,
+    "question_information_gain_scale": 4.8,
+    "over_budget_penalty": -1.0,
+    "abandonment_penalty": -4.5,
+    "repetition_penalty": -0.25
   },
   "q_learning": {
     "episodes": 3000,

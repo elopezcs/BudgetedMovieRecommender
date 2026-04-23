@@ -133,7 +133,7 @@ export function LiveDemoPage() {
     }
   }
 
-  const canAutoplay = Boolean(session) && !session?.done && session.mode === 'auto' && !session.awaiting_manual_response
+  const canAutoplay = session !== null && !session.done && session.mode === 'auto' && !session.awaiting_manual_response
 
   return (
     <div className="space-y-6">

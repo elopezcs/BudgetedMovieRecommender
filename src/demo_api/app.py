@@ -6,14 +6,13 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List
+from typing import Dict, List
 from uuid import uuid4
 
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.agents.baselines import baseline_policies
 from src.env.movie_recommender_env import ACTIONS, QUESTION_ACTIONS, BudgetedMovieRecommenderEnv
 from src.env.user_simulator import GENRES, PROFILE_LIBRARY, QUESTION_TYPES
 from src.inference.inference_adapter import PolicyAdapter
@@ -21,6 +20,7 @@ from src.utils.config import load_config
 
 from .schemas import (
     ComparisonMetricModel,
+    DemoPolicyName,
     ComparisonResponse,
     DemoOptionsResponse,
     DemoSessionResponse,
@@ -39,13 +39,8 @@ DEFAULT_CONFIG_PATH = ROOT / "configs" / "default.yaml"
 RESULTS_DIR = ROOT / "results"
 DEBUG_LOG_PATH = ROOT / "debug-5bb150.log"
 
-RL_POLICIES = {"q_learning", "dqn", "ppo"}
 SESSION_MODES = ["auto", "interactive"]
 ALL_POLICIES = [
-    "always_recommend",
-    "always_ask",
-    "ask_once_then_recommend",
-    "random_policy",
     "q_learning",
     "dqn",
     "ppo",
@@ -64,14 +59,13 @@ QUESTION_LABELS = {
 @dataclass
 class SessionState:
     session_id: str
-    policy: str
+    policy: DemoPolicyName
     user_profile: str
     mode: str
     question_budget: int
     seed: int
     env: BudgetedMovieRecommenderEnv
     current_observation: np.ndarray
-    policy_fn: Callable | None = None
     policy_adapter: PolicyAdapter | None = None
     timeline: List[SessionStepModel] = field(default_factory=list)
     cumulative_reward: float = 0.0
@@ -249,7 +243,7 @@ def _build_response(session: SessionState) -> DemoSessionResponse:
     )
     return DemoSessionResponse(
         session_id=session.session_id,
-        policy=session.policy,  # type: ignore[arg-type]
+        policy=session.policy,
         user_profile=session.user_profile,
         mode=session.mode,  # type: ignore[arg-type]
         question_budget=session.question_budget,
@@ -263,16 +257,12 @@ def _build_response(session: SessionState) -> DemoSessionResponse:
     )
 
 
-def _policy_action(session: SessionState, step_index: int) -> int:
-    if session.policy in RL_POLICIES:
-        assert session.policy_adapter is not None
-        prediction = session.policy_adapter.predict_action(
-            [float(x) for x in session.current_observation.tolist()]
-        )
-        return int(prediction["action_id"])
-
-    assert session.policy_fn is not None
-    return int(session.policy_fn(session.current_observation, step_index, {}))
+def _policy_action(session: SessionState, _step_index: int) -> int:
+    assert session.policy_adapter is not None
+    prediction = session.policy_adapter.predict_action(
+        [float(x) for x in session.current_observation.tolist()]
+    )
+    return int(prediction["action_id"])
 
 
 def _is_question_action(action_id: int) -> bool:
@@ -500,10 +490,7 @@ def start_session(payload: DemoStartRequest) -> DemoSessionResponse:
         current_observation=np.array(observation, dtype=np.float32),
     )
 
-    if payload.policy in RL_POLICIES:
-        state.policy_adapter = PolicyAdapter(payload.policy)
-    else:
-        state.policy_fn = baseline_policies()[payload.policy]
+    state.policy_adapter = PolicyAdapter(payload.policy)
 
     SESSIONS[session_id] = state
     return _build_response(state)

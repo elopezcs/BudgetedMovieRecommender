@@ -1,16 +1,28 @@
 from fastapi.testclient import TestClient
 
+import src.demo_api.app as demo_app
 from src.demo_api.app import app
 
 
 client = TestClient(app)
 
 
-def test_auto_mode_replaces_blocked_ask_with_fallback_recommendation():
+class SequencedPolicyAdapter:
+    def __init__(self, _algo: str):
+        self._actions = iter([0, 1])
+
+    def predict_action(self, _observation):
+        return {"action_id": next(self._actions)}
+
+
+def test_auto_mode_replaces_blocked_ask_with_fallback_recommendation(
+    monkeypatch,
+):
+    monkeypatch.setattr(demo_app, "PolicyAdapter", SequencedPolicyAdapter)
     start = client.post(
         "/api/demo/session/start",
         json={
-            "policy": "always_ask",
+            "policy": "q_learning",
             "user_profile": "balanced_viewer",
             "question_budget": 1,
             "seed": 123,
@@ -42,11 +54,14 @@ def test_auto_mode_replaces_blocked_ask_with_fallback_recommendation():
     assert second_step["questions_used"] == 1
 
 
-def test_interactive_mode_uses_fallback_recommendation_pending_action():
+def test_interactive_mode_uses_fallback_recommendation_pending_action(
+    monkeypatch,
+):
+    monkeypatch.setattr(demo_app, "PolicyAdapter", SequencedPolicyAdapter)
     start = client.post(
         "/api/demo/session/start",
         json={
-            "policy": "always_ask",
+            "policy": "q_learning",
             "user_profile": "balanced_viewer",
             "question_budget": 1,
             "seed": 123,
@@ -92,3 +107,18 @@ def test_interactive_mode_uses_fallback_recommendation_pending_action():
     assert step["fallback_applied"] is True
     assert step["original_attempted_action_name"] == "q_exploratory"
     assert step["questions_used"] == 1
+
+
+def test_start_session_rejects_baseline_policy_names():
+    start = client.post(
+        "/api/demo/session/start",
+        json={
+            "policy": "always_ask",
+            "user_profile": "balanced_viewer",
+            "question_budget": 1,
+            "seed": 123,
+            "mode": "auto",
+        },
+    )
+
+    assert start.status_code == 422

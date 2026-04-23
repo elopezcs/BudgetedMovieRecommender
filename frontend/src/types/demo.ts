@@ -1,12 +1,13 @@
 import type { PolicyName } from './results'
 
+export type DemoPolicyName = Extract<PolicyName, 'q_learning' | 'dqn' | 'ppo'>
 export type SessionMode = 'auto' | 'interactive'
 export type QuestionFeedback = 'helpful' | 'neutral' | 'annoying'
 export type RecommendationFeedback = 'accepted_strong' | 'accepted_weak' | 'skipped' | 'rejected_annoyed'
 export type ContinuationChoice = 'continue' | 'abandon'
 
 export interface DemoStartRequest {
-  policy: PolicyName
+  policy: DemoPolicyName
   user_profile: string
   question_budget: number
   seed?: number | null
@@ -73,7 +74,7 @@ export interface SessionSummary {
 
 export interface DemoSessionResponse {
   session_id: string
-  policy: PolicyName
+  policy: DemoPolicyName
   user_profile: string
   mode: SessionMode
   question_budget: number
@@ -87,7 +88,7 @@ export interface DemoSessionResponse {
 }
 
 export interface DemoOptionsResponse {
-  policies: PolicyName[]
+  policies: DemoPolicyName[]
   user_profiles: string[]
   session_modes: SessionMode[]
   budget_range: {

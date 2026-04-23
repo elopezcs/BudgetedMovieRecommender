@@ -7,7 +7,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from src.agents.baselines import baseline_policies
+from src.agents.baselines import ask_once_then_recommend_policy
 from src.evaluation.runner import run_policy_evaluation
 from src.training.common import build_env
 from src.utils.config import load_config
@@ -20,12 +20,12 @@ def _collect_latest_rl_summaries() -> list[dict]:
         root = Path("results") / algo
         if not root.exists():
             continue
-        run_dirs = sorted([p for p in root.iterdir() if p.is_dir()])
-        if not run_dirs:
+        summary_paths = [run_dir / "summary.json" for run_dir in root.iterdir() if run_dir.is_dir()]
+        summary_paths = [path for path in summary_paths if path.exists()]
+        if not summary_paths:
             continue
-        summary_path = run_dirs[-1] / "summary.json"
-        if summary_path.exists():
-            rows.append(json.loads(summary_path.read_text(encoding="utf-8")))
+        summary_path = max(summary_paths, key=lambda path: path.stat().st_mtime)
+        rows.append(json.loads(summary_path.read_text(encoding="utf-8")))
     return rows
 
 
@@ -36,16 +36,14 @@ def compare_algorithms(config_path: str, episodes: int | None = None) -> Path:
     env_factory = lambda: build_env(config, seed)
 
     rows = _collect_latest_rl_summaries()
-    for name, policy in baseline_policies().items():
-        summary, _ = run_policy_evaluation(
-            env_factory=env_factory,
-            policy_fn=policy,
-            episodes=eval_episodes,
-            seed=seed,
-            algorithm_name=name,
-        )
-        rows.append(summary.to_dict())
-
+    summary, _ = run_policy_evaluation(
+        env_factory=env_factory,
+        policy_fn=ask_once_then_recommend_policy(),
+        episodes=eval_episodes,
+        seed=seed,
+        algorithm_name="ask_once_then_recommend",
+    )
+    rows.append(summary.to_dict())
     rows = sorted(rows, key=lambda x: x["average_cumulative_reward"], reverse=True)
     out_dir = ensure_dir(Path("results/comparisons") / timestamp_tag())
     if rows:
@@ -72,7 +70,7 @@ def compare_algorithms(config_path: str, episodes: int | None = None) -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compare trained algorithms and baselines.")
+    parser = argparse.ArgumentParser(description="Compare the latest RL algorithms plus ask_once_then_recommend.")
     parser.add_argument("--config", type=str, default="configs/default.yaml")
     parser.add_argument("--episodes", type=int, default=None)
     args = parser.parse_args()

@@ -36,7 +36,7 @@ export function ComparisonPage() {
       <PageTitle
         eyebrow="Model Benchmarking"
         title="Algorithm Comparison Dashboard"
-        description="Compare reinforcement-learning policies and baseline strategies using the latest evaluation artifacts in the repository."
+        description="Compare the latest q_learning, dqn, and ppo evaluations alongside the ask_once_then_recommend baseline."
       />
 
       {error ? <FeedbackState title="Comparison data unavailable" message={error} /> : null}

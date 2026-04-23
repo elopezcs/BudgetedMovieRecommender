@@ -1,8 +1,0 @@
-{
-  "algorithm": "q_learning",
-  "average_cumulative_reward": -1.9136333333333317,
-  "acceptance_rate": 0.37992831541218636,
-  "abandonment_rate": 0.7833333333333333,
-  "average_questions_asked": 1.6166666666666667,
-  "average_session_length": 5.325
-}

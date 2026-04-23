@@ -162,13 +162,13 @@ Evaluate a specific model directory:
 python -m src.evaluation.evaluate_dqn --config configs/default.yaml --model-dir models/dqn/dqn_seed42_steps6000
 ```
 
-## Compare Algorithms and Baselines
+## Compare RL Algorithms and Ask-Once Baseline
 
 ```bash
 python -m src.evaluation.compare_algorithms --config configs/default.yaml
 ```
 
-This writes:
+This writes comparison artifacts using the latest `q_learning`, `dqn`, and `ppo` evaluation summaries plus the `ask_once_then_recommend` baseline:
 
 - `results/comparisons/<tag>/comparison_summary.csv`
 - `results/comparisons/<tag>/comparison_summary.json`
@@ -304,7 +304,7 @@ This bridge reuses existing backend components:
 ### Presentation Flow (Recommended)
 
 1. Open **Overview** to frame the problem and KPI outcomes.
-2. Run **Live Demo** and switch between `always_ask`, `always_recommend`, `q_learning`, `dqn`, and `ppo`.
+2. Run **Live Demo** and switch between `q_learning`, `dqn`, and `ppo`.
 3. Use **Algorithm Comparison** to show reward/acceptance/abandonment tradeoffs.
 4. Close on **Technical Credibility** to connect visuals to the real offline RL stack.
 
