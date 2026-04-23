@@ -7,6 +7,7 @@ from stable_baselines3.common.monitor import Monitor
 
 from src.evaluation.runner import run_policy_evaluation
 from src.training.common import action_map, build_env, build_run_dirs
+from src.training.step_logging import SB3TrainingStepLogger
 from src.utils.config import load_config
 from src.utils.io import make_run_id, save_dataframe, save_json
 from src.utils.seeding import set_global_seed
@@ -34,7 +35,12 @@ def train_ppo(config_path: str, seed: int | None = None) -> str:
         gae_lambda=float(ppo_cfg["gae_lambda"]),
         ent_coef=float(ppo_cfg["ent_coef"]),
     )
-    model.learn(total_timesteps=total_timesteps)
+    step_logger = SB3TrainingStepLogger(
+        algorithm="ppo",
+        seed=seed,
+        output_path=result_dir / "training_steps.csv",
+    )
+    model.learn(total_timesteps=total_timesteps, callback=step_logger)
     model.save(model_dir / "model")
 
     def policy(obs, _step, _info):
