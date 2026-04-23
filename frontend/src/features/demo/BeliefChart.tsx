@@ -1,12 +1,11 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { SessionStep } from '../../types/demo'
 
 interface BeliefChartProps {
-  step: SessionStep | null
+  belief: Record<string, number> | null
 }
 
-export function BeliefChart({ step }: BeliefChartProps) {
-  const data = step ? Object.entries(step.belief).map(([genre, score]) => ({ genre, score })) : []
+export function BeliefChart({ belief }: BeliefChartProps) {
+  const data = belief ? Object.entries(belief).map(([genre, score]) => ({ genre, score })) : []
 
   return (
     <div className="h-64 w-full">

@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 from src.env.movie_recommender_env import BudgetedMovieRecommenderEnv
+from src.env.user_simulator import GENRES
 from src.env.reward import compute_step_reward
 from src.utils.config import load_config
 
@@ -189,4 +190,22 @@ def test_hard_budget_blocks_extra_questions_in_interactive_mode():
     assert env._engagement == engagement_after_first
     assert env._uncertainty == uncertainty_after_first
     assert (env._belief == belief_after_first).all()
+
+
+def test_interactive_question_response_updates_selected_belief():
+    config = load_config("configs/default.yaml")
+    env = BudgetedMovieRecommenderEnv(config, seed=21)
+    env.reset(seed=21, options={"user_type": "balanced_viewer"})
+    starting_belief = deepcopy(env._belief)
+
+    env.apply_manual_response(
+        2,
+        continuation="continue",
+        question_feedback="helpful",
+        hinted_genre="scifi",
+    )
+
+    scifi_idx = GENRES.index("scifi")
+    assert env._belief[scifi_idx] > starting_belief[scifi_idx]
+    assert abs(float(env._belief.sum()) - 1.0) < 1e-6
 

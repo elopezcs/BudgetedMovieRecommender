@@ -19,6 +19,7 @@ const defaultRequest: DemoStartRequest = {
   seed: null,
   mode: 'auto',
 }
+const beliefGenres = ['action', 'comedy', 'drama', 'scifi', 'documentary'] as const
 
 export function LiveDemoPage() {
   const [options, setOptions] = useState<DemoOptionsResponse | null>(null)
@@ -57,6 +58,17 @@ export function LiveDemoPage() {
   })
 
   const latestStep = session?.latest_step ?? null
+  const displayedBelief = useMemo(() => {
+    if (latestStep) {
+      return latestStep.belief
+    }
+    if (!session) {
+      return null
+    }
+    return Object.fromEntries(
+      beliefGenres.map((genre, index) => [genre, session.current_observation[index] ?? 0]),
+    )
+  }, [latestStep, session])
 
   const progress = useMemo(() => {
     if (!latestStep) {
@@ -210,7 +222,7 @@ export function LiveDemoPage() {
             <h3 className="text-lg font-semibold text-white">Belief Over Genres</h3>
             <p className="mt-2 text-sm text-slate-400">Updated after every action to show internal preference belief.</p>
             <div className="mt-4">
-              <BeliefChart step={latestStep} />
+              <BeliefChart belief={displayedBelief} />
             </div>
           </Card>
           <Card>

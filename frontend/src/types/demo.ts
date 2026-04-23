@@ -1,6 +1,6 @@
 import type { PolicyName } from './results'
 
-export type DemoPolicyName = Extract<PolicyName, 'q_learning' | 'dqn' | 'ppo'>
+export type DemoPolicyName = Extract<PolicyName, 'q_learning' | 'dqn' | 'ppo' | 'ask_once_then_recommend'>
 export type SessionMode = 'auto' | 'interactive'
 export type QuestionFeedback = 'helpful' | 'neutral' | 'annoying'
 export type RecommendationFeedback = 'accepted_strong' | 'accepted_weak' | 'skipped' | 'rejected_annoyed'

@@ -6,13 +6,14 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, List
 from uuid import uuid4
 
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.agents.baselines import ask_once_then_recommend_policy
 from src.env.movie_recommender_env import ACTIONS, QUESTION_ACTIONS, BudgetedMovieRecommenderEnv
 from src.env.user_simulator import GENRES, PROFILE_LIBRARY, QUESTION_TYPES
 from src.inference.inference_adapter import PolicyAdapter
@@ -44,6 +45,7 @@ ALL_POLICIES = [
     "q_learning",
     "dqn",
     "ppo",
+    "ask_once_then_recommend",
 ]
 
 QUESTION_LABELS = {
@@ -67,6 +69,7 @@ class SessionState:
     env: BudgetedMovieRecommenderEnv
     current_observation: np.ndarray
     policy_adapter: PolicyAdapter | None = None
+    baseline_policy: Callable[[object, int, Dict], int] | None = None
     timeline: List[SessionStepModel] = field(default_factory=list)
     cumulative_reward: float = 0.0
     accepted_recommendations: int = 0
@@ -258,6 +261,8 @@ def _build_response(session: SessionState) -> DemoSessionResponse:
 
 
 def _policy_action(session: SessionState, _step_index: int) -> int:
+    if session.baseline_policy is not None:
+        return int(session.baseline_policy(session.current_observation, _step_index, {}))
     assert session.policy_adapter is not None
     prediction = session.policy_adapter.predict_action(
         [float(x) for x in session.current_observation.tolist()]
@@ -271,7 +276,15 @@ def _is_question_action(action_id: int) -> bool:
 
 def _select_fallback_recommendation(session: SessionState) -> int:
     belief_values = session.current_observation[: len(GENRES)]
-    top_genre_idx = int(np.argmax(belief_values))
+    max_belief = float(np.max(belief_values))
+    top_genre_indices = np.flatnonzero(np.isclose(belief_values, max_belief))
+    if len(top_genre_indices) == 1:
+        top_genre_idx = int(top_genre_indices[0])
+    else:
+        # Rotate deterministic ties by session seed and progress so flat priors do not
+        # always degrade to the first genre in the action list.
+        tie_break_idx = (session.seed + len(session.timeline)) % len(top_genre_indices)
+        top_genre_idx = int(top_genre_indices[tie_break_idx])
     return len(QUESTION_ACTIONS) + top_genre_idx
 
 
@@ -490,7 +503,10 @@ def start_session(payload: DemoStartRequest) -> DemoSessionResponse:
         current_observation=np.array(observation, dtype=np.float32),
     )
 
-    state.policy_adapter = PolicyAdapter(payload.policy)
+    if payload.policy == "ask_once_then_recommend":
+        state.baseline_policy = ask_once_then_recommend_policy()
+    else:
+        state.policy_adapter = PolicyAdapter(payload.policy)
 
     SESSIONS[session_id] = state
     return _build_response(state)

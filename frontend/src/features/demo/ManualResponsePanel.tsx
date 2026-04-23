@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type {
   ContinuationChoice,
   ManualResponseRequest,
@@ -10,6 +10,25 @@ import { titleCase } from '../../utils/format'
 
 const genreOptions = ['action', 'comedy', 'drama', 'scifi', 'documentary'] as const
 
+function defaultHintedGenre(actionName: string): string {
+  switch (actionName) {
+    case 'q_familiar':
+      return 'action'
+    case 'q_exploratory':
+      return 'documentary'
+    case 'q_serious':
+      return 'drama'
+    case 'q_light':
+      return 'comedy'
+    case 'q_fast_paced':
+      return 'scifi'
+    case 'q_calm':
+      return 'documentary'
+    default:
+      return 'drama'
+  }
+}
+
 interface ManualResponsePanelProps {
   pendingAction: PendingAction
   loading: boolean
@@ -19,8 +38,15 @@ interface ManualResponsePanelProps {
 export function ManualResponsePanel({ pendingAction, loading, onSubmit }: ManualResponsePanelProps) {
   const [continuation, setContinuation] = useState<ContinuationChoice>('continue')
   const [questionFeedback, setQuestionFeedback] = useState<QuestionFeedback>('helpful')
-  const [hintedGenre, setHintedGenre] = useState<string>(genreOptions[0])
+  const [hintedGenre, setHintedGenre] = useState<string>(defaultHintedGenre(pendingAction.action_name))
   const [recommendationFeedback, setRecommendationFeedback] = useState<RecommendationFeedback>('accepted_strong')
+
+  useEffect(() => {
+    setContinuation('continue')
+    setQuestionFeedback('helpful')
+    setHintedGenre(defaultHintedGenre(pendingAction.action_name))
+    setRecommendationFeedback('accepted_strong')
+  }, [pendingAction])
 
   function handleSubmit() {
     if (pendingAction.action_type === 'ask') {

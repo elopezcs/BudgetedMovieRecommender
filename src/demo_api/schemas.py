@@ -5,7 +5,7 @@ from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
-DemoPolicyName = Literal["q_learning", "dqn", "ppo"]
+DemoPolicyName = Literal["q_learning", "dqn", "ppo", "ask_once_then_recommend"]
 
 SessionMode = Literal["auto", "interactive"]
 QuestionFeedback = Literal["helpful", "neutral", "annoying"]
