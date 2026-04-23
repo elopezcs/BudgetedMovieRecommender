@@ -1,9 +1,9 @@
 # Budgeted Interactive Movie Recommender Using Reinforcement Learning
 
-Offline RL training pipeline for a budgeted interactive movie recommendation session.
+Offline RL training, evaluation, and demo stack for a budgeted interactive movie recommendation session.
 
-This project builds and trains policies in Python, saves reusable model artifacts, and
-produces evaluation outputs that can later be consumed by a frontend demo adapter.
+This project builds and trains policies in Python, saves reusable model artifacts, serves
+them through a lightweight FastAPI demo bridge, and presents the results in a React frontend.
 
 ## What This Project Includes
 
@@ -19,16 +19,21 @@ produces evaluation outputs that can later be consumed by a frontend demo adapte
   - `ask_once_then_recommend`
   - `random_policy`
 - Evaluation scripts and side-by-side comparison outputs.
-- Tests for environment, reward logic, simulator, Q-learning update, and artifact round-trip.
+- FastAPI demo bridge and React presentation frontend for live walkthroughs.
+- Tests for environment, reward logic, simulator, Q-learning update, demo API behavior, and artifact round-trip.
 
 ## Project Structure
 
 ```text
+frontend/
+docs/
 src/
   env/
   agents/
   training/
   evaluation/
+  demo_api/
+  inference/
   utils/
 models/
 results/
@@ -222,13 +227,12 @@ pytest -q
 
 ## Frontend Integration Notes
 
-A React demo can consume these artifacts through a lightweight adapter:
+The shipped demo uses a concrete frontend/backend split:
 
-- **Q-learning**: load `q_table.npy` + `metadata.json`, recreate state discretization, pick argmax action.
-- **DQN/PPO**: either
-  - run a Python inference microservice that loads SB3 `model.zip`, or
-  - export policy behavior into a frontend-friendly format offline.
-- Use `summary.json` and comparison outputs for dashboard metrics in the demo UI.
+- `frontend/` renders the Overview, Live Demo, Algorithm Comparison, and Technical Credibility pages.
+- `src/demo_api/app.py` serves the live demo session endpoints and results endpoints consumed by the frontend.
+- `src/inference/inference_adapter.py` loads trained RL artifacts and returns actions for `q_learning`, `dqn`, and `ppo`.
+- `results/` comparison and summary artifacts feed the dashboard KPIs and charts.
 
 ## Inference Adapter (JSON I/O)
 
@@ -273,6 +277,8 @@ A presentation-ready React application now lives in `frontend/`. It provides:
 - live step-by-step recommender demo with budget and belief updates
 - algorithm comparison charts and metric table
 - technical credibility view describing RL architecture and artifacts
+- demo policy selection for `q_learning`, `dqn`, and `ppo`
+- session mode selection for `auto` and `interactive`
 
 ### Frontend Setup
 
@@ -283,6 +289,12 @@ npm run dev
 ```
 
 The frontend runs on `http://localhost:5173` and proxies `/api/*` calls to `http://127.0.0.1:8000`.
+
+In the Live Demo page:
+
+- `auto` mode advances the environment with the built-in user simulator.
+- `interactive` mode pauses on each pending action and waits for manual feedback before continuing.
+- `Play Session` / autoplay is only available in `auto` mode.
 
 ### Run the Lightweight Demo API Bridge
 
@@ -297,14 +309,22 @@ Note: prefer `python -m uvicorn ...` over `uvicorn ...` to ensure the command ru
 This bridge reuses existing backend components:
 
 - session stepping via `src/env/movie_recommender_env.py`
-- baseline behavior from `src/agents/baselines.py`
+- interactive/manual response flow from `src/demo_api/app.py`
 - RL policy inference from `src/inference/inference_adapter.py`
 - metric artifacts from `results/`
+
+Primary demo endpoints include:
+
+- `GET /api/demo/options`
+- `POST /api/demo/session/start`
+- `POST /api/demo/session/next`
+- `POST /api/demo/session/respond`
+- `POST /api/demo/session/reset`
 
 ### Presentation Flow (Recommended)
 
 1. Open **Overview** to frame the problem and KPI outcomes.
-2. Run **Live Demo** and switch between `q_learning`, `dqn`, and `ppo`.
+2. Run **Live Demo**, choose one of `q_learning`, `dqn`, or `ppo`, then show both `auto` playback and `interactive` manual-response mode.
 3. Use **Algorithm Comparison** to show reward/acceptance/abandonment tradeoffs.
 4. Close on **Technical Credibility** to connect visuals to the real offline RL stack.
 
